@@ -161,8 +161,9 @@ fun PuzzleGame() {
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight()
-                .background(MaterialTheme.colors.primary.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.TopCenter
+                .background(MaterialTheme.colors.primary.copy(alpha = 0.1f))
+                .padding(8.dp),
+            contentAlignment = Alignment.TopStart
         ) {
             pieces.forEachIndexed { index, piece ->
                 if (!piece.isInPlace) {
@@ -221,22 +222,22 @@ fun PuzzleGame() {
 
         // Вычисляем начальные позиции для области с частями пазла
         val maxPieceWidth = pieceSizes.maxOf { it.first }
-        val horizontalSpacing = maxPieceWidth * 1.1f // 10% отступ между частями
+        val maxPieceHeight = pieceSizes.maxOf { it.second }
 
-        // Центрируем пазлы по горизонтали
-        val totalWidth = piecesPerColumn * horizontalSpacing
-        val startX = (screenWidth.value - totalWidth) / 2
-        val startY = 16f  // Минимальный отступ от верха области
+        // Начинаем с самого края (0,0)
+        val startX = 0f
+        val startY = 0f
 
         // Создаем паззлы с правильными размерами
         for (i in 0..11) {
-            val col = i % piecesPerColumn  // Размещаем все в один ряд
+            val row = i / 4  // 3 ряда
+            val col = i % 4  // 4 паззла в ряду
             val (pieceWidth, pieceHeight) = pieceSizes[i]
 
             pieces.add(
                 PuzzlePiece(
-                    initialX = startX + (col * horizontalSpacing),
-                    initialY = startY,
+                    initialX = startX + (col * pieceWidth),  // Используем реальную ширину каждого паззла
+                    initialY = startY + (row * pieceHeight), // Используем реальную высоту каждого паззла
                     correctX = (screenWidth.value - puzzleWidth) / 2 + (i % 4) * (originalWidth / 4) * scaleFactor,
                     correctY = (i / 4) * (originalHeight / 3) * scaleFactor,
                     isInPlace = false,
