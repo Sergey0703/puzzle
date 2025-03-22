@@ -217,12 +217,61 @@ fun PuzzleGame() {
         val pieceSizes = (0..11).map { i ->
             val (width, height) = getImageSize(R.drawable.puzzle_piece1 + i)
             Log.d("PuzzleGame", "Piece ${i + 1} original size: ${width}x${height}")
-            Pair(width * scaleFactor, height * scaleFactor)
+            val scaledWidth = width * scaleFactor
+            val scaledHeight = height * scaleFactor
+            Log.d("PuzzleGame", "Piece ${i + 1} scaled size: ${scaledWidth}x${scaledHeight}")
+            Pair(scaledWidth, scaledHeight)
         }
 
         // Вычисляем начальные позиции для области с частями пазла
         val maxPieceWidth = pieceSizes.maxOf { it.first }
         val maxPieceHeight = pieceSizes.maxOf { it.second }
+
+        // Рассчитываем высоту и ширину области для паззлов и смещение для каждого ряда/колонки
+        val columns = 4 // количество колонок
+        val rows = 3 // количество рядов
+        
+        // Используем фактические размеры изображения для расчета
+        val columnWidth = puzzleWidth / columns
+        val rowHeight = puzzleHeight / rows
+        
+        Log.d("PuzzleGame", "Puzzle area width: $puzzleWidth, height: $puzzleHeight")
+        Log.d("PuzzleGame", "Column width: $columnWidth, Row height: $rowHeight")
+
+        // Рассчитываем фактические позиции для каждого паззла на основе их размеров
+        // Создаем массивы для хранения координат X и Y для каждого ряда и колонки
+        val rowPositions = mutableListOf<Float>()
+        val colPositions = mutableListOf<Float>()
+        
+        // Начальная позиция
+        var currentX = 0f
+        colPositions.add(currentX)
+        
+        // Рассчитываем позиции для колонок
+        for (col in 0 until columns-1) {
+            // Находим максимальную ширину паззла в этой колонке
+            val piecesInColumn = (0..11).filter { it % 4 == col }
+            val maxWidth = piecesInColumn.maxOfOrNull { pieceSizes[it].first } ?: columnWidth
+            currentX += maxWidth
+            colPositions.add(currentX)
+        }
+        
+        // Начальная позиция для рядов
+        var currentY = 0f
+        rowPositions.add(currentY)
+        
+        // Рассчитываем позиции для рядов
+        for (row in 0 until rows-1) {
+            // Находим максимальную высоту паззла в этом ряду
+            val piecesInRow = (0..11).filter { it / 4 == row }
+            val maxHeight = piecesInRow.maxOfOrNull { pieceSizes[it].second } ?: rowHeight
+            currentY += maxHeight
+            rowPositions.add(currentY)
+        }
+        
+        // Логируем позиции рядов и колонок
+        Log.d("PuzzleGame", "Column positions: $colPositions")
+        Log.d("PuzzleGame", "Row positions: $rowPositions")
 
         // Начинаем с самого края (0,0)
         val startX = 0f
@@ -234,12 +283,19 @@ fun PuzzleGame() {
             val col = i % 4  // 4 паззла в ряду
             val (pieceWidth, pieceHeight) = pieceSizes[i]
 
+            // Используем рассчитанные позиции рядов и колонок
+            val correctX = if (col < colPositions.size) colPositions[col] else colPositions.last()
+            val correctY = if (row < rowPositions.size) rowPositions[row] else rowPositions.last()
+            
+            // Добавляем логирование для номера пазла и его правильных координат
+            Log.d("PuzzleGame", "Puzzle ${i + 1}: correctX=$correctX, correctY=$correctY")
+
             pieces.add(
                 PuzzlePiece(
                     initialX = startX + (col * pieceWidth),  // Используем реальную ширину каждого паззла
                     initialY = startY + (row * pieceHeight), // Используем реальную высоту каждого паззла
-                    correctX = (screenWidth.value - puzzleWidth) / 2 + (i % 4) * (originalWidth / 4) * scaleFactor,
-                    correctY = (i / 4) * (originalHeight / 3) * scaleFactor,
+                    correctX = correctX,
+                    correctY = correctY,
                     isInPlace = false,
                     width = pieceWidth,
                     height = pieceHeight
