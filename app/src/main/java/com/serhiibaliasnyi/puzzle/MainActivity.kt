@@ -57,7 +57,7 @@ fun PuzzleGame() {
     var isStarted by remember { mutableStateOf(false) }
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
-    
+
     val originalImageWidth = 1024f
     val originalImageHeight = 768f
     val scaleFactor = screenWidth.value / originalImageWidth
@@ -69,13 +69,13 @@ fun PuzzleGame() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Text(
             text = "Scaled size: ${puzzleWidth.toInt()}x${puzzleHeight.toInt()} (scale: ${String.format("%.2f", scaleFactor)})",
             style = MaterialTheme.typography.body1,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        
+
         Box(
             modifier = Modifier
                 .width(puzzleWidth.dp)
@@ -93,7 +93,7 @@ fun PuzzleGame() {
                 } else null,
                 alpha = if (isStarted) 0.3f else 1f
             )
-            
+
             // Horizontal ruler
             RulerScale(
                 modifier = Modifier
@@ -104,7 +104,7 @@ fun PuzzleGame() {
                 length = puzzleWidth,
                 scaleFactor = scaleFactor
             )
-            
+
             // Vertical ruler
             RulerScale(
                 modifier = Modifier
@@ -115,7 +115,7 @@ fun PuzzleGame() {
                 length = puzzleHeight,
                 scaleFactor = scaleFactor
             )
-            
+
             if (isStarted) {
                 pieces.forEachIndexed { index, piece ->
                     if (piece.isInPlace) {
@@ -131,7 +131,7 @@ fun PuzzleGame() {
                 }
             }
         }
-        
+
         // Start button
         Button(
             onClick = { isStarted = !isStarted },
@@ -141,7 +141,7 @@ fun PuzzleGame() {
         ) {
             Text(if (isStarted) "Show Reference" else "Start Game")
         }
-        
+
         // Divider with text
         Box(
             modifier = Modifier
@@ -149,20 +149,20 @@ fun PuzzleGame() {
                 .height(2.dp)
                 .background(MaterialTheme.colors.primary)
         )
-        
+
         Text(
             text = "Assemble from these pieces",
             style = MaterialTheme.typography.h6,
             modifier = Modifier.padding(16.dp)
         )
-        
+
         // Область с пазлами для выбора
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .background(MaterialTheme.colors.background),
-            contentAlignment = Alignment.Center
+                .fillMaxHeight()
+                .background(MaterialTheme.colors.primary.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.TopCenter
         ) {
             pieces.forEachIndexed { index, piece ->
                 if (!piece.isInPlace) {
@@ -172,10 +172,10 @@ fun PuzzleGame() {
                         onPositionChange = { newX, newY ->
                             val isOverPuzzleArea = newY < puzzleHeight
                             if (isOverPuzzleArea) {
-                                val isNearCorrectPosition = 
-                                    Math.abs(newX - piece.correctX) < 20 && 
-                                    Math.abs(newY - piece.correctY) < 20
-                                
+                                val isNearCorrectPosition =
+                                    Math.abs(newX - piece.correctX) < 20 &&
+                                            Math.abs(newY - piece.correctY) < 20
+
                                 if (isNearCorrectPosition) {
                                     pieces[index] = piece.copy(
                                         currentX = piece.correctX,
@@ -198,7 +198,7 @@ fun PuzzleGame() {
 
     LaunchedEffect(Unit) {
         val piecesPerColumn = 3
-        
+
         // Функция для получения размеров изображения из ресурса
         fun getImageSize(resourceId: Int): Pair<Float, Float> {
             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -221,31 +221,24 @@ fun PuzzleGame() {
 
         // Вычисляем начальные позиции для области с частями пазла
         val maxPieceWidth = pieceSizes.maxOf { it.first }
-        val maxPieceHeight = pieceSizes.maxOf { it.second }
         val horizontalSpacing = maxPieceWidth * 1.1f // 10% отступ между частями
-        val verticalSpacing = maxPieceHeight * 1.1f
-        
+
         // Центрируем пазлы по горизонтали
         val totalWidth = piecesPerColumn * horizontalSpacing
         val startX = (screenWidth.value - totalWidth) / 2
-        val startY = puzzleHeight + 50f  // Уменьшаем отступ сверху
+        val startY = 16f  // Минимальный отступ от верха области
 
         // Создаем паззлы с правильными размерами
         for (i in 0..11) {
-            val row = i / piecesPerColumn  // Теперь 4 ряда по 3 пазла
-            val col = i % piecesPerColumn  // 3 пазла в ряду
-            
-            val randomOffsetX = (-5..5).random().toFloat()  // Уменьшаем случайное смещение
-            val randomOffsetY = (-5..5).random().toFloat()
-            
+            val col = i % piecesPerColumn  // Размещаем все в один ряд
             val (pieceWidth, pieceHeight) = pieceSizes[i]
-            
+
             pieces.add(
                 PuzzlePiece(
-                    initialX = startX + (col * horizontalSpacing) + randomOffsetX,
-                    initialY = startY + (row * verticalSpacing) + randomOffsetY,
-                    correctX = (screenWidth.value - puzzleWidth) / 2 + (i % 4) * (originalWidth / 4) * scaleFactor, // для правильной позиции используем 4 колонки
-                    correctY = (i / 4) * (originalHeight / 3) * scaleFactor, // и 3 ряда
+                    initialX = startX + (col * horizontalSpacing),
+                    initialY = startY,
+                    correctX = (screenWidth.value - puzzleWidth) / 2 + (i % 4) * (originalWidth / 4) * scaleFactor,
+                    correctY = (i / 4) * (originalHeight / 3) * scaleFactor,
                     isInPlace = false,
                     width = pieceWidth,
                     height = pieceHeight
@@ -311,7 +304,7 @@ fun RulerScale(
         BitmapFactory.decodeResource(context.resources, R.drawable.puzzle_piece1, options)
         Pair(options.outWidth.toFloat(), options.outHeight.toFloat())
     }
-    
+
     val step = if (isHorizontal) firstPieceSize.first * scaleFactor * 0.36f else firstPieceSize.second * scaleFactor * 0.36f
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -322,9 +315,9 @@ fun RulerScale(
                 isFakeBoldText = true
                 setShadowLayer(4f, 2f, 2f, android.graphics.Color.BLACK)
             }
-            
+
             val scaledStep = step
-            
+
             if (isHorizontal) {
                 val width = size.width
                 for (i in 0..width.toInt() step scaledStep.toInt()) {
@@ -379,7 +372,7 @@ fun RulerScale(
                 }
             }
         }
-        
+
         // Информация о масштабе и шаге
         Column(
             modifier = Modifier
