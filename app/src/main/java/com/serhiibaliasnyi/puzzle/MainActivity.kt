@@ -32,6 +32,11 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.input.pointer.PointerInputChange
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,19 +55,44 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Data class PuzzlePiece
+data class PuzzlePiece(
+    val initialX: Float,
+    val initialY: Float,
+    val correctX: Float,
+    val correctY: Float,
+    val isInPlace: Boolean,
+    val width: Float,
+    val height: Float,
+    val currentX: Float = initialX,
+    val currentY: Float = initialY
+)
+
+
 @Composable
 fun PuzzleGame() {
     val context = LocalContext.current
     val pieces = remember { mutableStateListOf<PuzzlePiece>() }
     var isStarted by remember { mutableStateOf(false) }
     val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
+    val screenWidthDp = configuration.screenWidthDp
+    val density = LocalContext.current.resources.displayMetrics.density
+
+    // Calculate the screen width and height in pixels
+    val screenWidthPixels = screenWidthDp * density
+    val screenHeightPixels = configuration.screenHeightDp * density
 
     val originalImageWidth = 1024f
     val originalImageHeight = 768f
-    val scaleFactor = screenWidth.value / originalImageWidth
+    val scaleFactor = 0.4013672f // задано руками
+
     val puzzleWidth = originalImageWidth * scaleFactor
     val puzzleHeight = originalImageHeight * scaleFactor
+
+    // Height of the bottom area (DP)
+    val bottomAreaHeightDp = 350.dp
+    // Height of the bottom area in pixels
+    val bottomAreaHeight = bottomAreaHeightDp.value * density
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -84,7 +114,7 @@ fun PuzzleGame() {
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(R.drawable.puzzle_complete),
+                painter = painterResource(id = R.drawable.puzzle_complete),
                 contentDescription = "Complete Puzzle",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,
@@ -122,7 +152,7 @@ fun PuzzleGame() {
                         DraggablePuzzlePiece(
                             piece = piece,
                             imageId = R.drawable.puzzle_piece1 + index,
-                            onPositionChange = { newX, newY ->
+                            onPositionChange = { newX: Float, newY: Float ->
                                 pieces[index] = piece.copy(currentX = newX, currentY = newY)
                             },
                             scaleFactor = scaleFactor
@@ -156,11 +186,11 @@ fun PuzzleGame() {
             modifier = Modifier.padding(16.dp)
         )
 
-        // Область с пазлами для выбора
+        // Bottom area for puzzle pieces
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight()
+                .height(bottomAreaHeightDp)
                 .background(MaterialTheme.colors.primary.copy(alpha = 0.1f))
                 .padding(8.dp),
             contentAlignment = Alignment.TopStart
@@ -170,12 +200,12 @@ fun PuzzleGame() {
                     DraggablePuzzlePiece(
                         piece = piece,
                         imageId = R.drawable.puzzle_piece1 + index,
-                        onPositionChange = { newX, newY ->
+                        onPositionChange = { newX: Float, newY: Float ->
                             val isOverPuzzleArea = newY < puzzleHeight
                             if (isOverPuzzleArea) {
                                 val isNearCorrectPosition =
-                                    Math.abs(newX - piece.correctX) < 20 &&
-                                            Math.abs(newY - piece.correctY) < 20
+                                    abs(newX - piece.correctX) < 20 &&
+                                            abs(newY - piece.correctY) < 20
 
                                 if (isNearCorrectPosition) {
                                     pieces[index] = piece.copy(
@@ -198,102 +228,101 @@ fun PuzzleGame() {
     }
 
     LaunchedEffect(Unit) {
-        val piecesPerColumn = 3
-
-        // Функция для получения размеров изображения из ресурса
+        // Function to get image dimensions
         fun getImageSize(resourceId: Int): Pair<Float, Float> {
             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeResource(context.resources, resourceId, options)
             return Pair(options.outWidth.toFloat(), options.outHeight.toFloat())
         }
 
-        // Получаем размеры оригинальной картинки и вычисляем масштаб
+        Log.d("PuzzleGame", "Screen width: ${screenWidthPixels}px")
+        Log.d("PuzzleGame", "Screen height: ${configuration.screenHeightDp * density}px")
+
         val (originalWidth, originalHeight) = getImageSize(R.drawable.puzzle_complete)
-        val scaleFactor = screenWidth.value / originalWidth
-        Log.d("PuzzleGame", "Original image size: ${originalWidth}x${originalHeight}")
+        val scaleFactor =  0.4013672f
+
+        Log.d("PuzzleGame", "Original image size: ${originalWidth}x${originalHeight} (pixels)")
         Log.d("PuzzleGame", "Scale factor: $scaleFactor")
 
-        // Получаем реальные размеры каждого пазла и масштабируем их
+        // Get scaled sizes of puzzle pieces
         val pieceSizes = (0..11).map { i ->
             val (width, height) = getImageSize(R.drawable.puzzle_piece1 + i)
-            Log.d("PuzzleGame", "Piece ${i + 1} original size: ${width}x${height}")
+            Log.d("PuzzleGame", "Piece ${i + 1} original size: ${width}x${height} (pixels)")
             val scaledWidth = width * scaleFactor
             val scaledHeight = height * scaleFactor
-            Log.d("PuzzleGame", "Piece ${i + 1} scaled size: ${scaledWidth}x${scaledHeight}")
+            Log.d("PuzzleGame", "Piece ${i + 1} scaled size: ${scaledWidth}x${scaledHeight} (pixels)")
             Pair(scaledWidth, scaledHeight)
         }
 
-        // Вычисляем начальные позиции для области с частями пазла
-        val maxPieceWidth = pieceSizes.maxOf { it.first }
-        val maxPieceHeight = pieceSizes.maxOf { it.second }
+        // Available width and height in pixels
+        val availableWidth = screenWidthPixels
+        val availableHeight = bottomAreaHeight
 
-        // Рассчитываем высоту и ширину области для паззлов и смещение для каждого ряда/колонки
-        val columns = 4 // количество колонок
-        val rows = 3 // количество рядов
-        
-        // Используем фактические размеры изображения для расчета
-        val columnWidth = puzzleWidth / columns
-        val rowHeight = puzzleHeight / rows
-        
-        Log.d("PuzzleGame", "Puzzle area width: $puzzleWidth, height: $puzzleHeight")
-        Log.d("PuzzleGame", "Column width: $columnWidth, Row height: $rowHeight")
+        Log.d("PuzzleGame", "Available width: ${availableWidth} (pixels)")
+        Log.d("PuzzleGame", "Available height: ${availableHeight} (pixels)")
 
-        // Рассчитываем фактические позиции для каждого паззла на основе их размеров
-        // Создаем массивы для хранения координат X и Y для каждого ряда и колонки
-        val rowPositions = mutableListOf<Float>()
-        val colPositions = mutableListOf<Float>()
-        
-        // Начальная позиция
-        var currentX = 0f
-        colPositions.add(currentX)
-        
-        // Рассчитываем позиции для колонок
-        for (col in 0 until columns-1) {
-            // Находим максимальную ширину паззла в этой колонке
-            val piecesInColumn = (0..11).filter { it % 4 == col }
-            val maxWidth = piecesInColumn.maxOfOrNull { pieceSizes[it].first } ?: columnWidth
-            currentX += maxWidth
-            colPositions.add(currentX)
+        // *** MANUAL GRID LAYOUT ***
+        val columns = 4
+        val rows = 3
+
+        // Calculate horizontal spacing total
+        var maxPieceWidth = 0f
+        for (i in 0 until 12) {
+            if (pieceSizes[i].first > maxPieceWidth) {
+                maxPieceWidth = pieceSizes[i].first
+            }
         }
-        
-        // Начальная позиция для рядов
-        var currentY = 0f
-        rowPositions.add(currentY)
-        
-        // Рассчитываем позиции для рядов
-        for (row in 0 until rows-1) {
-            // Находим максимальную высоту паззла в этом ряду
-            val piecesInRow = (0..11).filter { it / 4 == row }
-            val maxHeight = piecesInRow.maxOfOrNull { pieceSizes[it].second } ?: rowHeight
-            currentY += maxHeight
-            rowPositions.add(currentY)
+        var maxPieceHeight = 0f
+        for (i in 0 until 12) {
+            if (pieceSizes[i].second > maxPieceHeight) {
+                maxPieceHeight = pieceSizes[i].second
+            }
         }
-        
-        // Логируем позиции рядов и колонок
-        Log.d("PuzzleGame", "Column positions: $colPositions")
-        Log.d("PuzzleGame", "Row positions: $rowPositions")
 
-        // Начинаем с самого края (0,0)
+        Log.d("PuzzleGame", "Max Piece Width: ${maxPieceWidth} (pixels)")
+        Log.d("PuzzleGame", "Max Piece Height: ${maxPieceHeight} (pixels)")
+
+
+        // Calculate horizontal and vertical spacing
+        val horizontalSpacing = 0f
+        val verticalSpacing = 0f
+
+        // Calculate cell sizes
+        val cellWidth = availableWidth / columns
+        val cellHeight = availableHeight / rows
+        Log.d("PuzzleGame", "Calculated columns: $columns, rows: $rows")
+        Log.d("PuzzleGame", "Cell width: $cellWidth (pixels)")
+        Log.d("PuzzleGame", "Cell height: $cellHeight (pixels)")
+        Log.d("PuzzleGame", "horizontalSpacing: $horizontalSpacing (pixels)")
+        Log.d("PuzzleGame", "verticalSpacing: $verticalSpacing (pixels)")
+
+
+        // Calculate Initial Positions
         val startX = 0f
         val startY = 0f
 
-        // Создаем паззлы с правильными размерами
-        for (i in 0..11) {
-            val row = i / 4  // 3 ряда
-            val col = i % 4  // 4 паззла в ряду
+        for (i in 0 until 12) {
+            val row = i / columns
+            val col = i % columns
             val (pieceWidth, pieceHeight) = pieceSizes[i]
 
-            // Используем рассчитанные позиции рядов и колонок
-            val correctX = if (col < colPositions.size) colPositions[col] else colPositions.last()
-            val correctY = if (row < rowPositions.size) rowPositions[row] else rowPositions.last()
-            
-            // Добавляем логирование для номера пазла и его правильных координат
-            Log.d("PuzzleGame", "Puzzle ${i + 1}: correctX=$correctX, correctY=$correctY")
+
+            // Calculate correct X and Y with manual grid
+            //val correctX = startX + col * cellWidth + (cellWidth - pieceWidth) / 2  // Previous
+            //val correctY = startY + row * cellHeight + (cellHeight - pieceHeight) / 2  // Previous
+
+            // New code
+            val correctX = startX + col * cellWidth
+            val correctY = startY + row * cellHeight
+            // Log
+            Log.d("PuzzleGame", "Puzzle ${i + 1}: width=${pieceWidth}, height=${pieceHeight}")
+
+            Log.d("PuzzleGame", "Puzzle ${i + 1}: correctX=$correctX, correctY=$correctY (pixels)")
 
             pieces.add(
                 PuzzlePiece(
-                    initialX = startX + (col * pieceWidth),  // Используем реальную ширину каждого паззла
-                    initialY = startY + (row * pieceHeight), // Используем реальную высоту каждого паззла
+                    initialX = correctX,
+                    initialY = correctY,
                     correctX = correctX,
                     correctY = correctY,
                     isInPlace = false,
@@ -304,18 +333,6 @@ fun PuzzleGame() {
         }
     }
 }
-
-data class PuzzlePiece(
-    val initialX: Float,
-    val initialY: Float,
-    val correctX: Float,
-    val correctY: Float,
-    val isInPlace: Boolean,
-    val width: Float,     // Добавляем размеры в класс
-    val height: Float,
-    val currentX: Float = initialX,
-    val currentY: Float = initialY
-)
 
 @Composable
 fun DraggablePuzzlePiece(
@@ -328,14 +345,14 @@ fun DraggablePuzzlePiece(
     var offsetY by remember { mutableStateOf(piece.currentY) }
 
     Image(
-        painter = painterResource(imageId),
+        painter = painterResource(id = imageId),
         contentDescription = "Puzzle Piece",
         modifier = Modifier
             .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
             .width(piece.width.dp)
             .height(piece.height.dp)
             .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
+                detectDragGestures { change: PointerInputChange, dragAmount: Offset ->
                     change.consume()
                     if (!piece.isInPlace) {
                         offsetX += dragAmount.x
@@ -430,7 +447,7 @@ fun RulerScale(
             }
         }
 
-        // Информация о масштабе и шаге
+        // Display scale information
         Column(
             modifier = Modifier
                 .align(if (isHorizontal) Alignment.TopEnd else Alignment.BottomStart)
@@ -439,12 +456,12 @@ fun RulerScale(
                 .padding(4.dp)
         ) {
             Text(
-                text = "Шаг: ${step.toInt()} пикс",
+                text = "Step: ${step.toInt()} pixels",
                 style = MaterialTheme.typography.caption,
                 color = MaterialTheme.colors.onSurface
             )
             Text(
-                text = "Масштаб: ${String.format("%.2f", scaleFactor)}x",
+                text = "Scale: ${String.format("%.2f", scaleFactor)}x",
                 style = MaterialTheme.typography.caption,
                 color = MaterialTheme.colors.onSurface
             )
